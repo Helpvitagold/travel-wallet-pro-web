@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "61866211702",
+    "project_id": "travelcurrencypro",
+    "storage_bucket": "travelcurrencypro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:61866211702:android:9452ce82fd3c1b08a52257",
+        "android_client_info": {
+          "package_name": "com.example.my_currency_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpLDj8y_sWPiDpzWS_yXSOjzW8kRYDqhc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

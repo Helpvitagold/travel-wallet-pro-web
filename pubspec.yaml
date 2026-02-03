@@ -1,0 +1,34 @@
+name: my_currency_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  shared_preferences: ^2.2.2
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  # 아이콘 생성 패키지 통합
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  # 아이콘 이미지 경로 등록
+  assets:
+    - assets/logo.png
+
+# 아이콘 상세 설정
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/logo.png"
+  min_sdk_android: 21

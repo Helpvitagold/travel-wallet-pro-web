@@ -1,0 +1,19 @@
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [ main ] # main 브랜치에 푸시될 때 작동
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x' # 최신 버전 사용
+          channel: 'stable'
+      - run: flutter build web --release --base-href "/travel-wallet-pro-web/"
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: build/web # 빌드된 결과물이 있는 폴더
+          branch: gh-pages # 배포용 브러치
