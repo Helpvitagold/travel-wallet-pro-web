@@ -34,23 +34,23 @@ class _CurrencyAppState extends State<CurrencyApp> {
   int selectedPresetIndex = -1;
 
   final Map<String, String> currencyData = {
-    'KRW': '대한민국 한국 원 South Korea won',
-    'USD': '미국 달러 US dollar america',
-    'JPY': '일본 엔 JPY yen japan',
-    'EUR': '유럽 유로 EU euro europe',
-    'CNY': '중국 위안 CNY yuan china',
-    'VND': '베트남 동 VND dong vietnam',
-    'THB': '태국 바트 THB baht thailand',
-    'PHP': '필리핀 페소 PHP peso philippines',
-    'TWD': '대만 달러 TWD taiwan',
-    'HKD': '홍콩 달러 HKD hongkong',
-    'SGD': '싱가포르 달러 SGD singapore',
-    'AUD': '호주 오스트레일리아 달러 AUD australia',
-    'GBP': '영국 파운드 GBP pound england',
-    'CAD': '캐나다 달러 CAD canada',
-    'CHF': '스위스 프랑 CHF swiss',
-    'IDR': '인도네시아 루피아 IDR indonesia',
-    'MYR': '말레이시아 링깃 MYR malaysia',
+    'KRW': '대한민국 한국 원',
+    'USD': '미국 달러',
+    'JPY': '일본 엔',
+    'EUR': '유럽 유로',
+    'CNY': '중국 위안',
+    'VND': '베트남 동',
+    'THB': '태국 바트',
+    'PHP': '필리핀 페소',
+    'TWD': '대만 달러',
+    'HKD': '홍콩 달러',
+    'SGD': '싱가포르 달러',
+    'AUD': '호주 달러',
+    'GBP': '영국 파운드',
+    'CAD': '캐나다 달러',
+    'CHF': '스위스 프랑',
+    'IDR': '인도네시아 루피아',
+    'MYR': '말레이시아 링깃',
   };
 
   @override
@@ -66,6 +66,9 @@ class _CurrencyAppState extends State<CurrencyApp> {
         presetNames =
             prefs.getStringList('preset_names') ??
             ['프리셋 1', '프리셋 2', '프리셋 3', '프리셋 4'];
+        // 💡 저장된 리스트가 있으면 불러오고, 없으면 기본값 사용
+        targetCurrencies =
+            prefs.getStringList('current_list') ?? ['USD', 'JPY', 'EUR'];
       });
     }
     await _loadOfflineData();
@@ -73,51 +76,23 @@ class _CurrencyAppState extends State<CurrencyApp> {
   }
 
   String _formatNumber(double number, String code) {
-    List<String> noDecimalCurrencies = [
-      'KRW',
-      'JPY',
-      'VND',
-      'IDR',
-      'THB',
-      'PHP',
-    ];
-    String formatted = noDecimalCurrencies.contains(code)
+    List<String> noDecimal = ['KRW', 'JPY', 'VND', 'IDR', 'THB', 'PHP'];
+    String formatted = noDecimal.contains(code)
         ? number.round().toString()
         : number.toStringAsFixed(2);
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
     return formatted.replaceAllMapped(reg, (Match m) => '${m[1]},');
   }
 
-  Future<void> _saveOfflineData(
-    Map<String, double> ratesToSave,
-    String time,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cached_rates', json.encode(ratesToSave));
-    await prefs.setString('last_updated', time);
-  }
-
   Future<void> _loadOfflineData() async {
     final prefs = await SharedPreferences.getInstance();
     String? cachedRates = prefs.getString('cached_rates');
-    String? cachedTime = prefs.getString('last_updated');
     if (cachedRates != null && mounted) {
       setState(() {
         rates = Map<String, double>.from(json.decode(cachedRates));
-        lastUpdated = cachedTime ?? "시간 정보 없음";
+        lastUpdated = prefs.getString('last_updated') ?? "시간 정보 없음";
       });
     }
-  }
-
-  String _getFlag(String code) {
-    if (code == 'EUR') return "🇪🇺";
-    return code
-        .substring(0, 2)
-        .toUpperCase()
-        .replaceAllMapped(
-          RegExp(r'[A-Z]'),
-          (m) => String.fromCharCode(m.group(0)!.codeUnitAt(0) + 127397),
-        );
   }
 
   Future<void> fetchRates() async {
@@ -125,21 +100,20 @@ class _CurrencyAppState extends State<CurrencyApp> {
       final res = await http
           .get(Uri.parse('https://open.er-api.com/v6/latest/$baseCurrency'))
           .timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 && mounted) {
         final Map<String, dynamic> data = json.decode(res.body);
-        final Map<String, dynamic> fetchedRates = data['rates'];
         DateTime now = DateTime.now();
         String formattedTime =
             "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-        if (mounted) {
-          setState(() {
-            rates = fetchedRates.map(
-              (key, value) => MapEntry(key, (value as num).toDouble()),
-            );
-            lastUpdated = formattedTime;
-          });
-          _saveOfflineData(rates, lastUpdated);
-        }
+        setState(() {
+          rates = (data['rates'] as Map).map(
+            (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+          );
+          lastUpdated = formattedTime;
+        });
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cached_rates', json.encode(rates));
+        await prefs.setString('last_updated', lastUpdated);
       }
     } catch (e) {
       await _loadOfflineData();
@@ -182,23 +156,25 @@ class _CurrencyAppState extends State<CurrencyApp> {
                       itemBuilder: (ctx, i) {
                         final c = results[i];
                         return CheckboxListTile(
-                          secondary: Text(
-                            _getFlag(c),
-                            style: const TextStyle(fontSize: 20),
+                          secondary: SizedBox(
+                            // 💡 이모지 박스가 깨지지 않게 크기를 고정
+                            width: 40,
+                            child: Text(
+                              _getFlag(c),
+                              style: const TextStyle(fontSize: 20),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                           title: Text(c),
                           value: selectedCodes.contains(c),
                           onChanged: (val) {
                             setDialogState(() {
-                              if (isBase) {
+                              if (isBase)
                                 selectedCodes = [c];
-                              } else {
-                                if (val == true) {
-                                  selectedCodes.add(c);
-                                } else {
-                                  selectedCodes.remove(c);
-                                }
-                              }
+                              else
+                                (val == true)
+                                    ? selectedCodes.add(c)
+                                    : selectedCodes.remove(c);
                             });
                           },
                         );
@@ -218,13 +194,12 @@ class _CurrencyAppState extends State<CurrencyApp> {
                     ? null
                     : () {
                         setState(() {
-                          if (isBase) {
+                          if (isBase)
                             baseCurrency = selectedCodes.first;
-                          } else {
+                          else {
                             for (var code in selectedCodes) {
-                              if (!targetCurrencies.contains(code)) {
+                              if (!targetCurrencies.contains(code))
                                 targetCurrencies.add(code);
-                              }
                             }
                           }
                           selectedPresetIndex = -1;
@@ -247,30 +222,30 @@ class _CurrencyAppState extends State<CurrencyApp> {
     );
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text("프리셋 저장"),
+      builder: (ctx) => AlertDialog(
+        title: const Text("프리셋 설정 & 저장"),
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(labelText: "프리셋 이름"),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text("취소"),
           ),
           ElevatedButton(
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
-              if (i > presetNames.length) {
-                presetNames.add(ctrl.text);
-              } else {
-                presetNames[i - 1] = ctrl.text;
-              }
+              setState(() {
+                if (i > presetNames.length)
+                  presetNames.add(ctrl.text);
+                else
+                  presetNames[i - 1] = ctrl.text;
+                selectedPresetIndex = i;
+              });
               await prefs.setStringList('preset_names', presetNames);
               await prefs.setString('p$i', json.encode(targetCurrencies));
-              if (!mounted) return;
-              setState(() => selectedPresetIndex = i);
-              Navigator.pop(dialogCtx);
+              Navigator.pop(ctx);
             },
             child: const Text("확인"),
           ),
@@ -289,6 +264,17 @@ class _CurrencyAppState extends State<CurrencyApp> {
       });
       fetchRates();
     }
+  }
+
+  String _getFlag(String code) {
+    if (code == 'EUR') return "🇪🇺";
+    return code
+        .substring(0, 2)
+        .toUpperCase()
+        .replaceAllMapped(
+          RegExp(r'[A-Z]'),
+          (m) => String.fromCharCode(m.group(0)!.codeUnitAt(0) + 127397),
+        );
   }
 
   @override
@@ -310,239 +296,316 @@ class _CurrencyAppState extends State<CurrencyApp> {
             color: Colors.white,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Flexible(
-                        flex: 2,
-                        child: ActionChip(
-                          avatar: Text(
-                            _getFlag(baseCurrency),
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          label: Text(
-                            "기준:$baseCurrency▼",
-                            style: const TextStyle(fontSize: 11),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onPressed: () => _showSearchDialog(true),
-                          backgroundColor: Colors.indigo.shade50,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            labelText: '금액 입력',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                            ),
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [ThousandSeparatorInputFormatter()],
-                          onChanged: (v) {
-                            setState(() {
-                              baseAmount =
-                                  double.tryParse(v.replaceAll(',', '')) ?? 0;
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
+                _buildInputSection(),
+                _buildUpdateInfo(),
+                _buildPresetGrid(),
+                _buildAddButtonInline(), // 💡 프리셋 아래로 이동한 통화 추가 버튼
+                const Divider(
+                  height: 32,
+                  thickness: 1,
+                  indent: 16,
+                  endIndent: 16,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  width: double.infinity,
-                  child: Text(
-                    "마지막 업데이트: $lastUpdated",
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                ),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
-                    // ✨ aspectRatio 조정하여 세로 높이 확보 (Overflow 방지)
-                    double aspectRatio = constraints.maxWidth > 600 ? 5.0 : 3.5;
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
-                      ),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          childAspectRatio: aspectRatio,
-                        ),
-                        itemCount: 4,
-                        itemBuilder: (context, index) {
-                          int i = index + 1;
-                          bool isSelected = selectedPresetIndex == i;
-                          String name = i <= presetNames.length
-                              ? presetNames[i - 1]
-                              : "프리셋 $i";
-                          return Container(
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.indigo.shade100
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.indigo
-                                    : Colors.grey.shade300,
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () => loadPreset(i),
-                                    child: Center(
-                                      child: Text(
-                                        name,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          color: isSelected
-                                              ? Colors.indigo.shade900
-                                              : Colors.black87,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: () => saveAndRenamePreset(i),
-                                  child: Container(
-                                    width: 45,
-                                    height: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.indigo.shade200.withOpacity(
-                                              0.4,
-                                            )
-                                          : Colors.grey.shade100,
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: isSelected
-                                              ? Colors.indigo
-                                              : Colors.grey.shade300,
-                                          width: 1,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        // ✨ 아이콘 폰트 대신 절대 안 깨지는 이모지 사용
-                                        Text(
-                                          "💾",
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                        Text(
-                                          "프리셋",
-                                          style: TextStyle(
-                                            fontSize: 7,
-                                            color: Colors.grey,
-                                            height: 1.1,
-                                          ),
-                                        ),
-                                        Text(
-                                          "저장",
-                                          style: TextStyle(
-                                            fontSize: 7,
-                                            color: Colors.grey,
-                                            height: 1.1,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 110),
-                    itemCount: targetCurrencies.length,
-                    itemBuilder: (context, index) {
-                      String c = targetCurrencies[index];
-                      double r = rates[c] ?? 0;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        child: ListTile(
-                          leading: Text(
-                            _getFlag(c),
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                          title: Text(
-                            "${_formatNumber(baseAmount * r, c)} $c",
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text("1 $baseCurrency = $r $c"),
-                          trailing: IconButton(
-                            // ✨ 아이콘 폰트 대신 이모지 사용
-                            icon: const Text(
-                              "🗑️",
-                              style: TextStyle(fontSize: 18),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                targetCurrencies.removeAt(index);
-                                selectedPresetIndex = -1;
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                _buildCurrencyList(),
               ],
             ),
           ),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 30),
-        width: double.infinity,
-        child: FloatingActionButton.extended(
-          elevation: 4,
-          onPressed: () => _showSearchDialog(false),
-          // ✨ 아이콘 폰트 대신 이모지 사용
-          icon: const Text("➕", style: TextStyle(fontSize: 20)),
-          label: const Text(
-            "통화 추가",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: Colors.indigo,
-          foregroundColor: Colors.white,
+    );
+  }
+
+  Widget _buildInputSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: IntrinsicHeight(
+        // 💡 핵심: 자식들 중 가장 높은 위젯에 높이를 맞춤
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch, // 💡 중요: 높이를 꽉 채우도록 강제
+          children: [
+            // 1. 좌측 통화 선택 버튼
+            InkWell(
+              onTap: () => _showSearchDialog(true),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ), // 💡 높이 기준점이 됨
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.indigo.shade100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getFlag(baseCurrency),
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "$baseCurrency▼",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 2. 우측 금액 입력창
+            Expanded(
+              child: TextField(
+                textAlignVertical: TextAlignVertical.center, // 💡 텍스트 수직 중앙 정렬
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  hintText: '금액 입력 (미입력시 1,000원 기준)',
+                  hintStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                  ),
+                  isDense: true,
+                  // 💡 contentPadding을 적절히 주어 내부 텍스트가 박스 정중앙에 오도록 보정
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Colors.indigo,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandSeparatorInputFormatter()],
+                onChanged: (v) => setState(
+                  () =>
+                      baseAmount = double.tryParse(v.replaceAll(',', '')) ?? 0,
+                ),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildUpdateInfo() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      width: double.infinity,
+      child: Text(
+        "마지막 업데이트: $lastUpdated",
+        style: const TextStyle(fontSize: 10, color: Colors.grey),
+      ),
+    );
+  }
+
+  Widget _buildPresetGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: constraints.maxWidth > 600 ? 5.0 : 3.5,
+            ),
+            itemCount: 4,
+            itemBuilder: (context, index) {
+              int i = index + 1;
+              bool isSelected = selectedPresetIndex == i;
+              String name = i <= presetNames.length
+                  ? presetNames[index]
+                  : "프리셋 $i";
+              return Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.indigo.shade100 : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected ? Colors.indigo : Colors.grey.shade300,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => loadPreset(i),
+                        child: Center(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? Colors.indigo.shade900
+                                  : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => saveAndRenamePreset(i),
+                      child: Container(
+                        width: 40,
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.indigo.shade200.withOpacity(0.4)
+                              : Colors.grey.shade100,
+                          border: Border(
+                            left: BorderSide(
+                              color: isSelected
+                                  ? Colors.indigo
+                                  : Colors.grey.shade300,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text("📝", style: TextStyle(fontSize: 14)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // 💡 피드백 반영: 프리셋 아래로 이동한 인라인 추가 버튼
+  Widget _buildAddButtonInline() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ElevatedButton.icon(
+        onPressed: () => _showSearchDialog(false),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.indigo,
+          minimumSize: const Size(double.infinity, 48), // 가로 가득 채움
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: 2,
+        ),
+        icon: const Text("💱", style: TextStyle(fontSize: 16)),
+        label: const Text(
+          "통화 추가하기",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrencyList() {
+    return Expanded(
+      child: ReorderableListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        buildDefaultDragHandles: false,
+        itemCount: targetCurrencies.length,
+        onReorder: (int oldIndex, int newIndex) async {
+          setState(() {
+            if (oldIndex < newIndex) newIndex -= 1;
+            final String item = targetCurrencies.removeAt(oldIndex);
+            targetCurrencies.insert(newIndex, item);
+            selectedPresetIndex = -1;
+          });
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setStringList('current_list', targetCurrencies);
+        },
+        itemBuilder: (context, index) {
+          String c = targetCurrencies[index];
+          double r = rates[c] ?? 0;
+
+          // 💡 1,000원 기준 계산 로직
+          String referenceText =
+              "1,000 $baseCurrency ≒ ${_formatNumber(1000.0 * r, c)} $c";
+
+          return Card(
+            key: ValueKey(c),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.shade200),
+            ),
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: ListTile(
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ReorderableDragStartListener(
+                    index: index,
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 8.0),
+                      child: Text(
+                        "☰",
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  Text(_getFlag(c), style: const TextStyle(fontSize: 24)),
+                ],
+              ),
+              title: Text(
+                "${_formatNumber(baseAmount * r, c)} $c",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              // 💡 피드백 반영: 1,000원 기준 비교 문구 노출
+              subtitle: Text(
+                referenceText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.indigo,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Text("❌", style: TextStyle(fontSize: 16)),
+                onPressed: () {
+                  setState(() {
+                    targetCurrencies.removeAt(index);
+                    selectedPresetIndex = -1;
+                  });
+                },
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -551,16 +614,18 @@ class _CurrencyAppState extends State<CurrencyApp> {
 class ThousandSeparatorInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
+    TextEditingValue oldV,
+    TextEditingValue newV,
   ) {
-    if (newValue.text.isEmpty) return newValue;
-    String numText = newValue.text.replaceAll(',', '');
+    if (newV.text.isEmpty) return newV;
+    String numText = newV.text.replaceAll(',', '');
     final double? num = double.tryParse(numText);
-    if (num == null) return oldValue;
-    RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    String formatted = numText.replaceAllMapped(reg, (Match m) => '${m[1]},');
-    return newValue.copyWith(
+    if (num == null) return oldV;
+    String formatted = numText.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return newV.copyWith(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
