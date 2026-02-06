@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [ main ] # main 브랜치에 푸시될 때 작동
+    branches: [ gh-pages ] # main 브랜치에 푸시될 때 작동
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -17,4 +17,4 @@ jobs:
         with:
           folder: build/web # 빌드된 결과물이 있는 폴더
           branch: gh-pages # 배포용 브러치
-          
+
