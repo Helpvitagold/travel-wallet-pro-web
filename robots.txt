@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://helpvitagold.github.io/travel-wallet-pro-web/sitemap.xml
