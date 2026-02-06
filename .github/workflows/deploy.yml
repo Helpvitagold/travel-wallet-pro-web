@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [ gh-pages ] # main 브랜치에 푸시될 때 작동
+    branches: [ main ] # main 브랜치에 푸시될 때 작동
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -11,10 +11,15 @@ jobs:
         with:
           flutter-version: '3.x' # 최신 버전 사용
           channel: 'stable'
+          
       - run: flutter build web --release --base-href "/travel-wallet-pro-web/"
+      
+      # 💡 [핵심 추가] 서치 콘솔 인증 파일을 빌드 폴더로 강제 복사
+      - name: Copy Search Console Verification File
+        run: cp web/google0a74ca61ce6611d3.html build/web/
+        
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: build/web # 빌드된 결과물이 있는 폴더
-          branch: gh-pages # 배포용 브러치
-
+          branch: gh-pages # 배포용 브랜치
